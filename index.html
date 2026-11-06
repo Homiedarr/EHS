@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>ALMUS TECH – EHS Safety 3D</title>
+<style>
+:root{--ink:#172536;--panel:rgba(12,26,43,.88);--lime:#b8f36b;--cyan:#76e2ef}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#a9d8df;font-family:Inter,system-ui,Arial;color:white}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+#hud{position:fixed;inset:0;pointer-events:none}
+.panel{background:var(--panel);border:1px solid #ffffff2b;border-radius:14px;box-shadow:0 8px 30px #07142140;backdrop-filter:blur(8px)}
+#brand{position:absolute;top:14px;left:14px;padding:11px 15px;min-width:220px}
+#brand strong{display:block;letter-spacing:1.5px;color:var(--lime);font-size:15px}
+#brand span{font-size:11px;color:#c4d5e4}
+#mission{position:absolute;top:14px;left:50%;transform:translateX(-50%);padding:10px 15px;min-width:250px;text-align:center}
+#mission b{font-size:12px;color:var(--lime);letter-spacing:.8px}
+#mission div{font-size:12px;margin-top:4px}
+#stats{position:absolute;right:14px;top:14px;padding:10px 13px;text-align:right;font-size:12px;line-height:1.7}
+#stats strong{color:var(--lime)}
+#help{position:absolute;left:14px;bottom:14px;padding:10px 13px;font-size:11px;color:#d8e7f2;line-height:1.65}
+#toast{position:absolute;left:50%;bottom:95px;transform:translateX(-50%);padding:11px 17px;font-size:13px;opacity:0;transition:opacity .2s;max-width:90%;text-align:center}
+#toast.show{opacity:1}
+#interact{position:absolute;right:18px;bottom:25px;pointer-events:auto;border:0;border-radius:50%;width:76px;height:76px;background:var(--lime);color:#18301a;font-weight:900;font-size:13px;box-shadow:0 5px 0 #6f9e39;display:none}
+#stick{position:absolute;left:22px;bottom:26px;width:118px;height:118px;border-radius:50%;background:#12283b66;border:1px solid #ffffff55;pointer-events:auto;display:none}
+#nub{position:absolute;width:48px;height:48px;border-radius:50%;background:#d9f8ffcc;left:34px;top:34px}
+#start{position:fixed;inset:0;background:linear-gradient(135deg,#09243bdf,#173d52d9);display:flex;align-items:center;justify-content:center;padding:20px;z-index:5}
+#start .card{max-width:560px;padding:28px;text-align:center}
+#start h1{margin:0 0 6px;font-size:clamp(25px,5vw,40px);color:var(--lime)}
+#start p{color:#d5e5ee;line-height:1.55}
+#start button{border:0;border-radius:12px;padding:14px 28px;background:var(--lime);font-weight:900;color:#18301a;font-size:15px;cursor:pointer}
+#start .small{font-size:12px;color:#a9c3d4}
+@media(max-width:700px){#brand{top:8px;left:8px;min-width:0;padding:8px 10px}#brand strong{font-size:12px}#brand span{font-size:9px}#mission{top:72px;min-width:220px;padding:7px 10px}#stats{right:8px;top:8px;padding:7px 9px;font-size:10px}#help{display:none}#stick,#interact{display:block}}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud">
+ <div id="brand" class="panel"><strong>ALMUS TECH</strong><span>EHS SAFETY SIMULATOR · SINGLE PLAYER</span></div>
+ <div id="mission" class="panel"><b>NHIỆM VỤ EHS</b><div id="taskline">Đang chuẩn bị...</div></div>
+ <div id="stats" class="panel">NHÂN VIÊN: <strong>MAI XUÂN QUỲNH</strong><br>HOÀN THÀNH: <strong id="done">0/5</strong><br>ĐIỂM AN TOÀN: <strong id="score">0</strong></div>
+ <div id="help" class="panel">Di chuyển: <b>W A S D</b> hoặc phím mũi tên<br>Tương tác: <b>E</b> khi đứng gần điểm nhiệm vụ<br>Đi đến từng khu vực và hoàn thành đủ 5 nhiệm vụ.</div>
+ <div id="toast" class="panel"></div>
+ <div id="stick"><div id="nub"></div></div><button id="interact">TƯƠNG<br>TÁC</button>
+</div>
+<div id="start"><div class="card panel">
+ <h1>EHS SAFETY 3D</h1><div style="color:#b8f36b;font-weight:800;letter-spacing:2px">ALMUS TECH</div>
+ <p>Nhập vai nhân viên <b>Mai Xuân Quỳnh</b>, di chuyển tự do giữa xưởng WATCH, BUDS và CNC. Hoàn thành các công việc an toàn – môi trường trong khuôn viên nhà máy.</p>
+ <p class="small">Bản đồ mở · Góc nhìn isometric 3D cartoon · Chơi đơn</p>
+ <button id="play">BẮT ĐẦU CA LÀM VIỆC</button>
+ <p class="small">Máy tính: WASD / phím mũi tên + E · Điện thoại: joystick + nút Tương tác</p>
+ </div></div>
+<script>
+(()=>{
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+let W=innerWidth,H=innerHeight,dpr=Math.min(devicePixelRatio||1,2);
+function resize(){W=innerWidth;H=innerHeight;canvas.width=W*dpr;canvas.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0)}
+addEventListener('resize',resize);resize();
+const world={w:1500,h:1100}, camera={x:0,y:0};
+const player={x:735,y:550,dir:0,speed:3.1,walk:0};
+const keys={};let running=false,score=0,done=0,toastTimer=0;
+const tasks=[
+ {id:0,x:380,y:280,zone:'WATCH',name:'Sửa đầu báo cháy',desc:'Kiểm tra và khắc phục đầu báo cháy',kind:'alarm',detail:'Đầu báo cháy đã được kiểm tra, vệ sinh và thử tín hiệu. Khu vực WATCH an toàn.'},
+ {id:1,x:1110,y:300,zone:'BUDS',name:'Sửa vòi phun nước',desc:'Kiểm tra đầu phun sprinkler',kind:'sprinkler',detail:'Đã thay đầu phun hỏng, kiểm tra áp lực và hướng phun.'},
+ {id:2,x:1120,y:800,zone:'CNC',name:'Sơn lại vạch đường',desc:'Kẻ vạch lối đi bộ an toàn',kind:'paint',detail:'Vạch đường đi bộ đã được sơn lại rõ ràng, đúng luồng di chuyển.'},
+ {id:3,x:450,y:850,zone:'CẢNH QUAN',name:'Trồng cây xanh',desc:'Trồng cây và chăm sóc cảnh quan',kind:'tree',detail:'Cây xanh đã được trồng, bổ sung mảng xanh cho nhà máy.'},
+ {id:4,x:750,y:430,zone:'AN TOÀN CHUNG',name:'Kiểm tra bình cứu hỏa',desc:'Kiểm tra niêm phong, đồng hồ áp suất và hạn kiểm định',kind:'ext',detail:'Bình cứu hỏa đủ áp suất, còn hạn kiểm định và đặt đúng vị trí.'}
+];
+const buildings=[
+ {x:170,y:140,w:430,h:290,name:'XƯỞNG WATCH',color:'#79a9bb',roof:'#3d7188'},
+ {x:900,y:150,w:430,h:300,name:'XƯỞNG BUDS',color:'#c5a77c',roof:'#92744f'},
+ {x:900,y:650,w:430,h:300,name:'XƯỞNG CNC',color:'#9b9fc4',roof:'#656b99'}
+];
+const trees=[];for(let i=0;i<36;i++){let x=40+(i*197)%1410,y=50+(i*131)%1000;if(!buildings.some(b=>x>b.x-30&&x<b.x+b.w+30&&y>b.y-30&&y<b.y+b.h+30))trees.push({x,y,r:10+(i%4)*2})}
+function iso(x,y){return {x:(x-y)*.72,y:(x+y)*.38}}
+function project(x,y,z=0){let p=iso(x-camera.x,y-camera.y);return {x:W/2+p.x,y:H/2+p.y-z}}
+function poly(points,fill,stroke){ctx.beginPath();points.forEach((p,i)=>{let q=project(p[0],p[1],p[2]||0);i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y)});ctx.closePath();ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=2;ctx.stroke()}}
+function rect3(x,y,w,h,depth,color,top){poly([[x,y,0],[x+w,y,0],[x+w,y+h,0],[x,y+h,0]],color,'#25485a');poly([[x,y,0],[x+w,y,0],[x+w,y,0+depth],[x,y,depth]],top||'#e5eef0');poly([[x+w,y,0],[x+w,y+h,0],[x+w,y+h,depth],[x+w,y,depth]],'#355d70')}
+function drawGround(){
+ ctx.fillStyle='#9bd2a0';ctx.fillRect(0,0,W,H);
+ // broad paved paths
+ poly([[0,490],[1500,490],[1500,610],[0,610]],'#b9c6c0');
+ poly([[650,0],[790,0],[790,1100],[650,1100]],'#b9c6c0');
+ // road markings
+ for(let y=30;y<1080;y+=55)poly([[713,y],[727,y],[727,y+25],[713,y+25]],'#f8f0c6');
+ for(let x=20;x<1480;x+=70)poly([[x,545],[x+32,545],[x+32,552],[x,552]],'#f8f0c6');
+ // lawn patterns
+ for(let i=0;i<22;i++){let x=(i*173)%1450,y=(i*239)%1050;let p=project(x,y);ctx.fillStyle='#8bc58f';ctx.beginPath();ctx.arc(p.x,p.y,2,0,7);ctx.fill()}
+}
+function drawTree(x,y,r){let p=project(x,y);ctx.fillStyle='#77573a';ctx.fillRect(p.x-3,p.y-r,6,r+8);ctx.fillStyle='#2c8757';ctx.beginPath();ctx.arc(p.x,p.y-r, r,0,7);ctx.fill();ctx.fillStyle='#55ad69';ctx.beginPath();ctx.arc(p.x-r*.35,p.y-r*1.25,r*.62,0,7);ctx.fill()}
+function drawBuilding(b){let p=project(b.x,b.y);let q=project(b.x+b.w,b.y+b.h);let w=q.x-p.x,h=q.y-p.y;
+ // footprint + walls
+ poly([[b.x,b.y,0],[b.x+b.w,b.y,0],[b.x+b.w,b.y+b.h,0],[b.x,b.y+b.h,0]],'#79959a');
+ poly([[b.x,b.y,0],[b.x+b.w,b.y,0],[b.x+b.w,b.y,45],[b.x,b.y,45]],b.color);
+ poly([[b.x+b.w,b.y,0],[b.x+b.w,b.y+b.h,0],[b.x+b.w,b.y+b.h,45],[b.x+b.w,b.y,45]],'#557d8d');
+ poly([[b.x,b.y,45],[b.x+b.w,b.y,45],[b.x+b.w,b.y+b.h,45],[b.x,b.y+b.h,45]],b.roof);
+ // roof seam
+ poly([[b.x+18,b.y+18,47],[b.x+b.w-18,b.y+18,47],[b.x+b.w-18,b.y+b.h-18,47],[b.x+18,b.y+b.h-18,47]],b.roof,'#d5e0df');
+ let center=project(b.x+b.w/2,b.y+b.h/2,52);ctx.fillStyle='white';ctx.font='bold 15px system-ui';ctx.textAlign='center';ctx.fillText(b.name,center.x,center.y);
+ // doors/windows
+ for(let i=0;i<4;i++){let x=b.x+35+i*95;poly([[x,b.y+b.h,0],[x+45,b.y+b.h,0],[x+45,b.y+b.h,32],[x,b.y+b.h,32]],'#244d61','#c5d8d9')}
+}
+function drawTask(t){let p=project(t.x,t.y);let complete=t.done;ctx.save();
+ ctx.fillStyle=complete?'#4a9c62':'#f4c64e';ctx.beginPath();ctx.ellipse(p.x,p.y+8,20,9,0,0,7);ctx.fill();
+ if(t.kind==='alarm'){ctx.fillStyle='#e24b43';ctx.beginPath();ctx.arc(p.x,p.y-12,10,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.fillRect(p.x-5,p.y-15,10,5)}
+ if(t.kind==='sprinkler'){ctx.strokeStyle='#d9f7ff';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(p.x,p.y-25);ctx.lineTo(p.x,p.y-8);ctx.stroke();ctx.fillStyle='#55c7ec';ctx.beginPath();ctx.arc(p.x,p.y-6,6,0,7);ctx.fill()}
+ if(t.kind==='paint'){ctx.fillStyle='#f5d54b';ctx.fillRect(p.x-15,p.y-10,30,8);ctx.fillStyle='#333';ctx.fillRect(p.x-11,p.y-2,5,7);ctx.fillRect(p.x+7,p.y-2,5,7)}
+ if(t.kind==='tree'){drawTree(t.x,t.y,15)}
+ if(t.kind==='ext'){ctx.fillStyle='#d83c34';ctx.fillRect(p.x-9,p.y-27,18,30);ctx.fillStyle='#f5e6d0';ctx.fillRect(p.x-5,p.y-22,10,8);ctx.fillStyle='#252525';ctx.fillRect(p.x-4,p.y-32,8,6)}
+ if(!complete){ctx.strokeStyle='#fff7bf';ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y-13,24+Math.sin(Date.now()/220)*3,0,7);ctx.stroke()}
+ ctx.fillStyle='#183347';ctx.font='bold 10px system-ui';ctx.textAlign='center';ctx.fillText(complete?'✓ HOÀN THÀNH':'E · '+t.name,p.x,p.y+30);ctx.restore()
+}
+function drawPlayer(){let p=project(player.x,player.y);let bob=Math.sin(player.walk)*2;
+ // shadow
+ ctx.fillStyle='#26464c55';ctx.beginPath();ctx.ellipse(p.x,p.y+5,15,7,0,0,7);ctx.fill();
+ // legs
+ ctx.strokeStyle='#253b55';ctx.lineWidth=6;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(p.x-4,p.y-3+bob);ctx.lineTo(p.x-6,p.y+8);ctx.moveTo(p.x+4,p.y-3+bob);ctx.lineTo(p.x+7,p.y+8);ctx.stroke();
+ // body hi-vis vest
+ ctx.fillStyle='#f3a928';ctx.fillRect(p.x-10,p.y-25+bob,20,23);ctx.fillStyle='#f4f0d4';ctx.fillRect(p.x-2,p.y-23+bob,4,18);
+ // head + helmet
+ ctx.fillStyle='#e8b58c';ctx.beginPath();ctx.arc(p.x,p.y-32+bob,8,0,7);ctx.fill();
+ ctx.fillStyle='#f3d64f';ctx.beginPath();ctx.arc(p.x,p.y-36+bob,10,Math.PI,0);ctx.lineTo(p.x+10,p.y-34+bob);ctx.lineTo(p.x-10,p.y-34+bob);ctx.fill();
+ // name tag
+ ctx.fillStyle='#102c40';ctx.fillRect(p.x-35,p.y-57+bob,70,14);ctx.fillStyle='white';ctx.font='bold 8px system-ui';ctx.textAlign='center';ctx.fillText('MAI XUÂN QUỲNH',p.x,p.y-47+bob);
+}
+function nearest(){let best=null,dist=1e9;for(let t of tasks){if(t.done)continue;let d=Math.hypot(t.x-player.x,t.y-player.y);if(d<dist){best=t;dist=d}}return dist<65?best:null}
+function updateTask(){let t=nearest();document.getElementById('taskline').textContent=t?`[${t.zone}] ${t.name} – nhấn E / TƯƠNG TÁC`:`Di chuyển đến điểm nhiệm vụ gần nhất · ${done}/5 đã xong`}
+function showToast(s){let el=document.getElementById('toast');el.textContent=s;el.classList.add('show');toastTimer=220}
+function interact(){let t=nearest();if(!t){showToast('Chưa ở gần điểm nhiệm vụ. Hãy di chuyển lại gần biểu tượng!');return}t.done=true;done++;score+=100;document.getElementById('done').textContent=done+'/5';document.getElementById('score').textContent=score;showToast('✓ '+t.name+': '+t.detail);if(done===5)setTimeout(()=>showToast('🎉 XUẤT SẮC! Mai Xuân Quỳnh đã hoàn thành toàn bộ nhiệm vụ EHS tại ALMUS TECH.'),900)}
+function draw(){
+ camera.x=Math.max(0,Math.min(world.w,player.x));camera.y=Math.max(0,Math.min(world.h,player.y));
+ drawGround();
+ // decorative trees sorted roughly
+ trees.forEach(t=>drawTree(t.x,t.y,t.r));
+ buildings.forEach(drawBuilding);
+ // small landscaping planters
+ for(let x of [80,840,1410])for(let y of [180,920]){let p=project(x,y);ctx.fillStyle='#b38a60';ctx.fillRect(p.x-12,p.y-5,24,10);drawTree(x,y,12)}
+ tasks.forEach(drawTask);drawPlayer();
+ let t=nearest();if(t){let p=project(t.x,t.y);ctx.strokeStyle='#fff';ctx.setLineDash([4,4]);ctx.beginPath();let me=project(player.x,player.y);ctx.moveTo(me.x,me.y);ctx.lineTo(p.x,p.y);ctx.stroke();ctx.setLineDash([])}
+ updateTask();
+}
+let joy={x:0,y:0,active:false};function step(){
+ if(!running)return;
+ let dx=0,dy=0;if(keys.ArrowLeft||keys.a||keys.A)dx--;if(keys.ArrowRight||keys.d||keys.D)dx++;if(keys.ArrowUp||keys.w||keys.W)dy--;if(keys.ArrowDown||keys.s||keys.S)dy++;
+ dx+=joy.x;dy+=joy.y;let len=Math.hypot(dx,dy);if(len>1){dx/=len;dy/=len}
+ if(len>.05){player.x=Math.max(25,Math.min(world.w-25,player.x+dx*player.speed));player.y=Math.max(25,Math.min(world.h-25,player.y+dy*player.speed));player.walk+=.22}
+ draw();if(toastTimer>0&&!--toastTimer)document.getElementById('toast').classList.remove('show');
+ requestAnimationFrame(step)
+}
+addEventListener('keydown',e=>{keys[e.key]=true;if(e.key==='e'||e.key==='E'){if(running)interact()}if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault()});
+addEventListener('keyup',e=>keys[e.key]=false);
+document.getElementById('play').onclick=()=>{document.getElementById('start').style.display='none';running=true;step()};
+document.getElementById('interact').onclick=interact;
+const stick=document.getElementById('stick'),nub=document.getElementById('nub');
+function setJoy(e){let r=stick.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,dx=e.clientX-cx,dy=e.clientY-cy,m=Math.min(36,Math.hypot(dx,dy)),a=Math.atan2(dy,dx);joy.x=Math.cos(a)*m/36;joy.y=Math.sin(a)*m/36;nub.style.left=(34+Math.cos(a)*m)+'px';nub.style.top=(34+Math.sin(a)*m)+'px'}
+stick.addEventListener('pointerdown',e=>{joy.active=true;stick.setPointerCapture(e.pointerId);setJoy(e)});
+stick.addEventListener('pointermove',e=>{if(joy.active)setJoy(e)});
+function endJoy(){joy.active=false;joy.x=joy.y=0;nub.style.left='34px';nub.style.top='34px'}
+stick.addEventListener('pointerup',endJoy);stick.addEventListener('pointercancel',endJoy);
+draw();
+})();
+</script>
+</body>
+</html>
